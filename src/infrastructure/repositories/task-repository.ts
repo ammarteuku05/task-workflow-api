@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { Task, TaskState, TaskPriority } from '../../domain/types';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../logging/logger';
 
 export interface TaskFilters {
   state?: TaskState;
@@ -18,6 +19,7 @@ export class TaskRepository {
   constructor(private db: Database.Database) { }
 
   create(task: Omit<Task, 'created_at' | 'updated_at'>): Task {
+    logger.debug('Database: Creating task', 'TaskRepository.create', undefined, { taskId: task.id, tenantId: task.tenant_id });
     const now = new Date();
     const stmt = this.db.prepare(`
       INSERT INTO tasks (id, tenant_id, workspace_id, title, priority, state, assignee_id, version, created_at, updated_at)
@@ -45,6 +47,7 @@ export class TaskRepository {
   }
 
   findById(taskId: string, tenantId: string, workspaceId: string): Task | null {
+    logger.debug('Database: Finding task by ID', 'TaskRepository.findById', undefined, { taskId, tenantId });
     const stmt = this.db.prepare(`
       SELECT * FROM tasks
       WHERE id = ? AND tenant_id = ? AND workspace_id = ?
@@ -59,6 +62,7 @@ export class TaskRepository {
   }
 
   update(task: Task): Task {
+    logger.debug('Database: Updating task', 'TaskRepository.update', undefined, { taskId: task.id, version: task.version });
     const now = new Date();
     const stmt = this.db.prepare(`
       UPDATE tasks
@@ -80,7 +84,9 @@ export class TaskRepository {
     );
 
     if (result.changes === 0) {
-      throw new Error('Version conflict: task was modified by another request');
+      const error = new Error('Version conflict: task was modified by another request');
+      logger.warn(error.message, 'TaskRepository.update', undefined, { taskId: task.id, version: task.version });
+      throw error;
     }
 
     return {
@@ -95,6 +101,7 @@ export class TaskRepository {
     workspaceId: string,
     filters: TaskFilters
   ): PaginatedTasks {
+    logger.debug('Database: Finding tasks by filters', 'TaskRepository.findByFilters', undefined, { tenantId, workspaceId, filters });
     let query = 'SELECT * FROM tasks WHERE tenant_id = ? AND workspace_id = ?';
     const params: any[] = [tenantId, workspaceId];
 

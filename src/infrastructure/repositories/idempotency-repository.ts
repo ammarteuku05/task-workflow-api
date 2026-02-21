@@ -1,10 +1,12 @@
 import Database from 'better-sqlite3';
 import { IdempotencyKey } from '../../domain/types';
+import { logger } from '../logging/logger';
 
 export class IdempotencyRepository {
   constructor(private db: Database.Database) { }
 
   findByKey(idempotencyKey: string): IdempotencyKey | null {
+    logger.debug('Database: Finding idempotency key', 'IdempotencyRepository.findByKey', undefined, { idempotencyKey });
     const stmt = this.db.prepare(`
       SELECT * FROM idempotency_keys
       WHERE id = ?
@@ -25,6 +27,7 @@ export class IdempotencyRepository {
   }
 
   create(idempotencyKey: IdempotencyKey): IdempotencyKey {
+    logger.debug('Database: Creating idempotency key', 'IdempotencyRepository.create', undefined, { idempotencyKey: idempotencyKey.id, taskId: idempotencyKey.task_id });
     const stmt = this.db.prepare(`
       INSERT INTO idempotency_keys (id, task_id, tenant_id, workspace_id, created_at)
       VALUES (?, ?, ?, ?, ?)

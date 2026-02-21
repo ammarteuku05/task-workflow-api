@@ -3,6 +3,7 @@ import { TaskEventRepository } from '../../infrastructure/repositories/task-even
 import { Task, TaskEventType, Role } from '../../domain/types';
 import { StateMachine } from '../../domain/state-machine';
 import Database from 'better-sqlite3';
+import { logger } from '../../infrastructure/logging/logger';
 
 export interface AssignTaskRequest {
   assignee_id: string;
@@ -34,27 +35,36 @@ export class AssignTaskCommandHandler implements AssignTaskCommand {
     role: Role,
     expectedVersion: number
   ): Promise<Task> {
+    logger.debug('Executing AssignTaskCommand', 'AssignTaskCommandHandler', undefined, { tenantId, workspaceId, taskId, request, role, expectedVersion });
+
     // Only manager can assign
     if (role !== Role.MANAGER) {
-      throw new Error('Only managers can assign tasks');
+      const error = new Error('Only managers can assign tasks');
+      logger.warn(error.message, 'AssignTaskCommandHandler');
+      throw error;
     }
 
     const task = this.taskRepo.findById(taskId, tenantId, workspaceId);
     if (!task) {
-      throw new Error('Task not found');
+      const error = new Error('Task not found');
+      logger.warn(error.message, 'AssignTaskCommandHandler', undefined, { taskId });
+      throw error;
     }
 
     // Check version
     if (task.version !== expectedVersion) {
-      throw new Error('Version conflict');
+      const error = new Error('Version conflict');
+      logger.warn(error.message, 'AssignTaskCommandHandler', undefined, { taskId, currentVersion: task.version, expectedVersion });
+      throw error;
     }
 
     // Check if assignment is allowed
     if (!StateMachine.canAssign(task.state)) {
-      throw new Error(`Cannot assign task in ${task.state} state`);
+      const error = new Error(`Cannot assign task in ${task.state} state`);
+      logger.warn(error.message, 'AssignTaskCommandHandler', undefined, { taskId, state: task.state });
+      throw error;
     }
 
-    // Use transaction
     const transaction = this.db.transaction(() => {
       this.taskRepo.update({
         ...task,
@@ -74,7 +84,14 @@ export class AssignTaskCommandHandler implements AssignTaskCommand {
       });
     });
 
-    transaction();
+    try {
+      transaction();
+      logger.info('Task assigned successfully', 'AssignTaskCommandHandler', undefined, { taskId, assigneeId: request.assignee_id });
+    } catch (error) {
+      logger.error('Failed to assign task in transaction', error, 'AssignTaskCommandHandler', undefined, { taskId });
+      throw error;
+    }
+
     return this.taskRepo.findById(taskId, tenantId, workspaceId) as Task;
   }
 }

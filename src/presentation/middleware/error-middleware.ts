@@ -1,13 +1,12 @@
 import { Response, NextFunction } from 'express';
 import { RequestWithId } from './request-id-middleware';
+import { logger } from '../../infrastructure/logging/logger';
 
 export const errorMiddleware = (err: any, req: RequestWithId, res: Response, next: NextFunction) => {
     const requestId = req.requestId;
 
     // Log the error with request ID
-    console.error(`[Error][${requestId}]`, {
-        message: err.message,
-        stack: err.stack,
+    logger.error(`Error processing request: ${err.message}`, err, 'errorMiddleware', requestId, {
         path: req.path,
         method: req.method,
         body: req.body,

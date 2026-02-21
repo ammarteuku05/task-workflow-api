@@ -9,7 +9,8 @@ describe('GetEventsQueryHandler', () => {
 
   beforeEach(() => {
     eventRepo = {
-      findAll: jest.fn()
+      findAll: jest.fn(),
+      countAll: jest.fn()
     } as any;
 
     query = new GetEventsQueryHandler(eventRepo);
@@ -30,22 +31,36 @@ describe('GetEventsQueryHandler', () => {
       ];
 
       eventRepo.findAll.mockReturnValue(events);
+      eventRepo.countAll.mockReturnValue(1);
 
       const result = await query.execute();
 
-      expect(eventRepo.findAll).toHaveBeenCalledWith(50);
-      expect(result).toEqual(events);
+      expect(eventRepo.findAll).toHaveBeenCalledWith(50, 0);
+      expect(eventRepo.countAll).toHaveBeenCalled();
+      expect(result).toEqual({
+        events,
+        total: 1,
+        limit: 50,
+        offset: 0
+      });
     });
 
-    it('should get events with custom limit', async () => {
+    it('should get events with custom limit and offset', async () => {
       const events: TaskEvent[] = [];
 
       eventRepo.findAll.mockReturnValue(events);
+      eventRepo.countAll.mockReturnValue(100);
 
-      const result = await query.execute(100);
+      const result = await query.execute(10, 20);
 
-      expect(eventRepo.findAll).toHaveBeenCalledWith(100);
-      expect(result).toEqual(events);
+      expect(eventRepo.findAll).toHaveBeenCalledWith(10, 20);
+      expect(eventRepo.countAll).toHaveBeenCalled();
+      expect(result).toEqual({
+        events,
+        total: 100,
+        limit: 10,
+        offset: 20
+      });
     });
   });
 });

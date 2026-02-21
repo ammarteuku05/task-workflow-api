@@ -6,6 +6,7 @@ import { TransitionTaskCommandHandler } from '../../application/commands/transit
 import { GetTaskQueryHandler } from '../../application/queries/get-task-query';
 import { ListTasksQueryHandler } from '../../application/queries/list-tasks-query';
 import { TaskPriority, TaskState } from '../../domain/types';
+import { logger } from '../../infrastructure/logging/logger';
 
 export class TaskHandlers {
   constructor(
@@ -22,6 +23,8 @@ export class TaskHandlers {
       const { title, priority } = req.body;
       const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
 
+      logger.info('Creating task', 'TaskHandlers.createTask', req.requestId, { workspaceId, title, priority, idempotencyKey });
+
       const task = await this.createTaskCommand.execute(
         req.tenantId!,
         workspaceId,
@@ -36,6 +39,7 @@ export class TaskHandlers {
         version: task.version
       });
     } catch (error: any) {
+      logger.error('Failed to create task', error, 'TaskHandlers.createTask', req.requestId);
       next(error);
     }
   }
@@ -46,18 +50,20 @@ export class TaskHandlers {
       const { assignee_id } = req.body;
       const ifMatchVersion = req.headers['if-match-version'] as string;
 
+      logger.info('Assigning task', 'TaskHandlers.assignTask', req.requestId, { workspaceId, taskId, assignee_id, ifMatchVersion });
+
       if (!ifMatchVersion) {
-        const error = 'If-Match-Version header is required';
-        console.error(`[Error][${req.requestId}] ${error}`);
-        res.status(400).json({ code: 400, error, request_id: req.requestId });
+        const error = new Error('If-Match-Version header is required');
+        logger.warn(error.message, 'TaskHandlers.assignTask', req.requestId);
+        res.status(400).json({ code: 400, error: error.message, request_id: req.requestId });
         return;
       }
 
       const expectedVersion = parseInt(ifMatchVersion, 10);
       if (isNaN(expectedVersion)) {
-        const error = 'If-Match-Version must be a number';
-        console.error(`[Error][${req.requestId}] ${error}`);
-        res.status(400).json({ code: 400, error, request_id: req.requestId });
+        const error = new Error('If-Match-Version must be a number');
+        logger.warn(error.message, 'TaskHandlers.assignTask', req.requestId);
+        res.status(400).json({ code: 400, error: error.message, request_id: req.requestId });
         return;
       }
 
@@ -77,6 +83,7 @@ export class TaskHandlers {
         version: task.version
       });
     } catch (error: any) {
+      logger.error('Failed to assign task', error, 'TaskHandlers.assignTask', req.requestId);
       next(error);
     }
   }
@@ -87,18 +94,20 @@ export class TaskHandlers {
       const { to_state } = req.body;
       const ifMatchVersion = req.headers['if-match-version'] as string;
 
+      logger.info('Transitioning task state', 'TaskHandlers.transitionTask', req.requestId, { workspaceId, taskId, to_state, ifMatchVersion });
+
       if (!ifMatchVersion) {
-        const error = 'If-Match-Version header is required';
-        console.error(`[Error][${req.requestId}] ${error}`);
-        res.status(400).json({ code: 400, error, request_id: req.requestId });
+        const error = new Error('If-Match-Version header is required');
+        logger.warn(error.message, 'TaskHandlers.transitionTask', req.requestId);
+        res.status(400).json({ code: 400, error: error.message, request_id: req.requestId });
         return;
       }
 
       const expectedVersion = parseInt(ifMatchVersion, 10);
       if (isNaN(expectedVersion)) {
-        const error = 'If-Match-Version must be a number';
-        console.error(`[Error][${req.requestId}] ${error}`);
-        res.status(400).json({ code: 400, error, request_id: req.requestId });
+        const error = new Error('If-Match-Version must be a number');
+        logger.warn(error.message, 'TaskHandlers.transitionTask', req.requestId);
+        res.status(400).json({ code: 400, error: error.message, request_id: req.requestId });
         return;
       }
 
@@ -119,6 +128,7 @@ export class TaskHandlers {
         version: task.version
       });
     } catch (error: any) {
+      logger.error('Failed to transition task', error, 'TaskHandlers.transitionTask', req.requestId);
       next(error);
     }
   }
@@ -126,6 +136,8 @@ export class TaskHandlers {
   async getTask(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { workspaceId, taskId } = req.params;
+
+      logger.info('Getting task details', 'TaskHandlers.getTask', req.requestId, { workspaceId, taskId });
 
       const result = await this.getTaskQuery.execute(req.tenantId!, workspaceId, taskId);
 
@@ -151,6 +163,7 @@ export class TaskHandlers {
         }))
       });
     } catch (error: any) {
+      logger.error('Failed to get task', error, 'TaskHandlers.getTask', req.requestId);
       next(error);
     }
   }
@@ -166,6 +179,8 @@ export class TaskHandlers {
       if (limit) filters.limit = parseInt(limit as string, 10);
       if (cursor) filters.cursor = cursor as string;
 
+      logger.info('Listing tasks', 'TaskHandlers.listTasks', req.requestId, { workspaceId, filters });
+
       const result = await this.listTasksQuery.execute(req.tenantId!, workspaceId, filters);
 
       res.status(200).json({
@@ -174,6 +189,7 @@ export class TaskHandlers {
         next_cursor: result.nextCursor
       });
     } catch (error: any) {
+      logger.error('Failed to list tasks', error, 'TaskHandlers.listTasks', req.requestId);
       next(error);
     }
   }

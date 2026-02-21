@@ -4,6 +4,7 @@ import { TaskEventRepository } from '../../infrastructure/repositories/task-even
 import { Task, TaskPriority, TaskEventType, TaskState } from '../../domain/types';
 import { v4 as uuidv4 } from 'uuid';
 import Database from 'better-sqlite3';
+import { logger } from '../../infrastructure/logging/logger';
 
 export interface CreateTaskRequest {
   title: string;
@@ -33,18 +34,25 @@ export class CreateTaskCommandHandler implements CreateTaskCommand {
     request: CreateTaskRequest,
     idempotencyKey?: string
   ): Promise<Task> {
+    logger.debug('Executing CreateTaskCommand', 'CreateTaskCommandHandler', undefined, { tenantId, workspaceId, request, idempotencyKey });
+
     // Validate title
     if (!request.title || request.title.trim().length === 0) {
-      throw new Error('Title is required');
+      const error = new Error('Title is required');
+      logger.warn(error.message, 'CreateTaskCommandHandler');
+      throw error;
     }
     if (request.title.length > 120) {
-      throw new Error('Title must be at most 120 characters');
+      const error = new Error('Title must be at most 120 characters');
+      logger.warn(error.message, 'CreateTaskCommandHandler');
+      throw error;
     }
 
     // Check idempotency
     if (idempotencyKey) {
       const existing = this.idempotencyRepo.findByKey(idempotencyKey);
       if (existing) {
+        logger.info('Idempotency key found, returning existing task', 'CreateTaskCommandHandler', undefined, { idempotencyKey, taskId: existing.task_id });
         const task = this.taskRepo.findById(existing.task_id, tenantId, workspaceId);
         if (task) {
           return task;
@@ -56,7 +64,6 @@ export class CreateTaskCommandHandler implements CreateTaskCommand {
     const taskId = uuidv4();
     const now = new Date();
 
-    // Use transaction for atomicity
     const transaction = this.db.transaction(() => {
       const task: Omit<Task, 'created_at' | 'updated_at'> = {
         id: taskId,
@@ -97,7 +104,14 @@ export class CreateTaskCommandHandler implements CreateTaskCommand {
       return createdTask;
     });
 
-    transaction();
+    try {
+      transaction();
+      logger.info('Task created successfully', 'CreateTaskCommandHandler', undefined, { taskId, tenantId, workspaceId });
+    } catch (error) {
+      logger.error('Failed to create task in transaction', error, 'CreateTaskCommandHandler');
+      throw error;
+    }
+
     return this.taskRepo.findById(taskId, tenantId, workspaceId) as Task;
   }
 }

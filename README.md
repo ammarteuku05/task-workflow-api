@@ -12,7 +12,6 @@ npm run build
 ```
 
 ## Running the Application
-
 ### Development Mode
 ```bash
 npm run dev
@@ -22,9 +21,6 @@ npm run dev
 ```bash
 npm start
 ```
-
-The server will start on port 3000 (or the port specified in the `PORT` environment variable).
-
 ### Using Docker Compose 
 1. Start the application:
 ```bash

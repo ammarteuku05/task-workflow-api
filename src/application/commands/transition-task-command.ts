@@ -3,6 +3,7 @@ import { TaskEventRepository } from '../../infrastructure/repositories/task-even
 import { Task, TaskState, TaskEventType, Role } from '../../domain/types';
 import { StateMachine } from '../../domain/state-machine';
 import Database from 'better-sqlite3';
+import { logger } from '../../infrastructure/logging/logger';
 
 export interface TransitionTaskRequest {
   to_state: TaskState;
@@ -36,14 +37,20 @@ export class TransitionTaskCommandHandler implements TransitionTaskCommand {
     userId: string,
     expectedVersion: number
   ): Promise<Task> {
+    logger.debug('Executing TransitionTaskCommand', 'TransitionTaskCommandHandler', undefined, { tenantId, workspaceId, taskId, request, role, userId, expectedVersion });
+
     const task = this.taskRepo.findById(taskId, tenantId, workspaceId);
     if (!task) {
-      throw new Error('Task not found');
+      const error = new Error('Task not found');
+      logger.warn(error.message, 'TransitionTaskCommandHandler', undefined, { taskId });
+      throw error;
     }
 
     // Check version
     if (task.version !== expectedVersion) {
-      throw new Error('Version conflict');
+      const error = new Error('Version conflict');
+      logger.warn(error.message, 'TransitionTaskCommandHandler', undefined, { taskId, currentVersion: task.version, expectedVersion });
+      throw error;
     }
 
     // Validate transition based on role
@@ -60,10 +67,11 @@ export class TransitionTaskCommandHandler implements TransitionTaskCommand {
     }
 
     if (!canTransition) {
-      throw new Error(`Invalid transition from ${task.state} to ${request.to_state} for role ${role}`);
+      const error = new Error(`Invalid transition from ${task.state} to ${request.to_state} for role ${role}`);
+      logger.warn(error.message, 'TransitionTaskCommandHandler', undefined, { taskId, currentState: task.state, targetState: request.to_state, role });
+      throw error;
     }
 
-    // Use transaction
     const transaction = this.db.transaction(() => {
       this.taskRepo.update({
         ...task,
@@ -83,7 +91,14 @@ export class TransitionTaskCommandHandler implements TransitionTaskCommand {
       });
     });
 
-    transaction();
+    try {
+      transaction();
+      logger.info('Task state transitioned successfully', 'TransitionTaskCommandHandler', undefined, { taskId, fromState: task.state, toState: request.to_state });
+    } catch (error) {
+      logger.error('Failed to transition task in transaction', error, 'TransitionTaskCommandHandler', undefined, { taskId });
+      throw error;
+    }
+
     return this.taskRepo.findById(taskId, tenantId, workspaceId) as Task;
   }
 }

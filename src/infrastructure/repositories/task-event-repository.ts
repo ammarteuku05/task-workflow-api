@@ -1,11 +1,13 @@
 import Database from 'better-sqlite3';
 import { TaskEvent, TaskEventType } from '../../domain/types';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../logging/logger';
 
 export class TaskEventRepository {
   constructor(private db: Database.Database) { }
 
   create(event: Omit<TaskEvent, 'id' | 'created_at'>): TaskEvent {
+    logger.debug('Database: Creating task event', 'TaskEventRepository.create', undefined, { taskId: event.task_id, eventType: event.event_type });
     const id = uuidv4();
     const now = new Date();
     const stmt = this.db.prepare(`
@@ -43,6 +45,7 @@ export class TaskEventRepository {
   }
 
   findAll(limit: number = 50, offset: number = 0): TaskEvent[] {
+    logger.debug('Database: Finding all events', 'TaskEventRepository.findAll', undefined, { limit, offset });
     const stmt = this.db.prepare(`
       SELECT * FROM task_events
       ORDER BY created_at DESC, id DESC
@@ -54,6 +57,7 @@ export class TaskEventRepository {
   }
 
   countAll(): number {
+    logger.debug('Database: Counting all events', 'TaskEventRepository.countAll');
     const stmt = this.db.prepare('SELECT COUNT(*) as count FROM task_events');
     const row = stmt.get() as { count: number };
     return row.count;
