@@ -43,24 +43,44 @@ describe('EventHandlers', () => {
         }
       ];
 
-      getEventsQuery.execute.mockResolvedValue(events);
+      const result = {
+        events,
+        total: 1,
+        limit: 50,
+        offset: 0
+      };
+
+      getEventsQuery.execute.mockResolvedValue(result);
 
       await handlers.getEvents(mockRequest as Request, mockResponse as Response, next);
 
-      expect(getEventsQuery.execute).toHaveBeenCalledWith(50);
+      expect(getEventsQuery.execute).toHaveBeenCalledWith(50, 0);
       expect(mockResponse.status).toHaveBeenCalledWith(200);
-      expect(mockResponse.json).toHaveBeenCalledWith({ code: 200, events });
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        code: 200,
+        events,
+        meta: {
+          total: 1,
+          limit: 50,
+          offset: 0
+        }
+      });
     });
 
     it('should respect limit query parameter', async () => {
       const events: TaskEvent[] = [];
 
-      getEventsQuery.execute.mockResolvedValue(events);
+      getEventsQuery.execute.mockResolvedValue({
+        events: [],
+        total: 0,
+        limit: 10,
+        offset: 0
+      });
       mockRequest.query = { limit: '10' };
 
       await handlers.getEvents(mockRequest as Request, mockResponse as Response, next);
 
-      expect(getEventsQuery.execute).toHaveBeenCalledWith(10);
+      expect(getEventsQuery.execute).toHaveBeenCalledWith(10, 0);
     });
 
     it('should call next on error', async () => {

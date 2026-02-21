@@ -42,15 +42,21 @@ export class TaskEventRepository {
     return rows.map(row => this.mapRowToEvent(row));
   }
 
-  findAll(limit: number = 50): TaskEvent[] {
+  findAll(limit: number = 50, offset: number = 0): TaskEvent[] {
     const stmt = this.db.prepare(`
       SELECT * FROM task_events
       ORDER BY created_at DESC, id DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `);
 
-    const rows = stmt.all(limit) as any[];
+    const rows = stmt.all(limit, offset) as any[];
     return rows.map(row => this.mapRowToEvent(row));
+  }
+
+  countAll(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM task_events');
+    const row = stmt.get() as { count: number };
+    return row.count;
   }
 
   private mapRowToEvent(row: any): TaskEvent {
